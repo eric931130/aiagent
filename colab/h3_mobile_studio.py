@@ -613,4 +613,4 @@ def launch(username, password):
     demo=app()
     return demo.launch(share=True,pwa=True,auth=(username,password),inline=False,
                        server_name="0.0.0.0",server_port=7860,
-                       show_error=True,prevent_thread_lock=False,allowed_paths=[str(PUBLIC)])
+                       show_error=True,debug=True,prevent_thread_lock=False,allowed_paths=[str(PUBLIC)])
