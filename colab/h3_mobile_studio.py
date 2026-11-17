@@ -35,6 +35,11 @@ if DATA.exists():
         JOBS.update(json.loads(DATA.read_text(encoding="utf-8")))
     except Exception:
         pass
+elif DRIVE_READY and (DRIVE / "jobs.json").exists():
+    try:
+        JOBS.update(json.loads((DRIVE / "jobs.json").read_text(encoding="utf-8")))
+    except Exception:
+        pass
 SERVER = None
 
 REQUIRED = [
@@ -300,6 +305,10 @@ def upscale_frames(jobid, video, output, width, height, test_seconds):
     if model.stat().st_size < 1_000_000:
         raise RuntimeError("Real-ESRGAN 權重下載不完整")
     start_comfy(jobid)
+    try:
+        requests.post(API+"/free",json={"unload_models":True,"free_memory":True},timeout=20)
+    except Exception:
+        pass
     meta = ffprobe(video)
     stream = next(x for x in meta["streams"] if x["codec_type"] == "video")
     fps = float(Fraction(stream.get("avg_frame_rate", "24/1")))
@@ -348,6 +357,11 @@ def upscale_frames(jobid, video, output, width, height, test_seconds):
 
 def synth_voice(jobid, text, speaker, style, output):
     set_job(jobid, "載入 Qwen3-TTS 中文配音（首次需下載模型）")
+    try:
+        import qwen_tts
+    except ImportError:
+        set_job(jobid, "首次安裝 Qwen3-TTS 套件")
+        cmd([sys.executable, "-m", "pip", "install", "-q", "qwen-tts", "soundfile"])
     # H3 runs in a separate process; terminate it to free L4 GPU before loading TTS.
     stop_comfy()
     import torch
@@ -511,6 +525,10 @@ def check_job(jobid):
         record=JOBS.get(jobid,{})
     message=f"**任務：{jobid}**\n\n{record.get('status','找不到任務')}\n\n最後更新：{record.get('updated','—')}"
     path=Path(record["result"]) if record.get("result") else None
+    if (not path or not path.is_file()) and DRIVE_READY:
+        backup=DRIVE/(jobid+".mp4")
+        if backup.is_file():
+            path=backup
     if path and path.is_file():
         return message,str(path),str(path)
     return message,None,None
@@ -519,7 +537,7 @@ def check_job(jobid):
 def refresh_jobs():
     choices=job_options()
     value=choices[0][1] if choices else None
-    return gr.update(choices=choices,value=value)
+    return gr.update(choices=choices,value=value), gr.update(choices=choices,value=None)
 
 
 CSS="""
